@@ -12,7 +12,7 @@ public sealed record CardCyclePreviewOptions
     /// <summary>
     /// How long each card is shown before the preview advances.
     /// </summary>
-    public TimeSpan TimePerCard { get; init; } = TimeSpan.FromSeconds(1.25);
+    public TimeSpan TimePerCard { get; init; } = TimeSpan.FromSeconds(0.85);
 
     /// <summary>
     /// Prevents accidentally previewing a huge card pool.

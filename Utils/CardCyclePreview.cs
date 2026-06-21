@@ -7,9 +7,6 @@ using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Utils;
 
-/// <summary>
-/// Utility methods for creating hover tips that cycle between several card previews.
-/// </summary>
 public static class CardCyclePreview
 {
     public static IHoverTip FromCards(
@@ -28,43 +25,19 @@ public static class CardCyclePreview
             .Where(card => card != null)
             .ToList();
 
-        return FromResolver(
+        return FromCards(
             () => resolvedCards,
             options);
     }
 
-    public static IHoverTip FromResolver(
-        Func<IEnumerable<CardModel>> resolver,
+    public static IHoverTip FromCards(
+        Func<IEnumerable<CardModel>> cardResolver,
         CardCyclePreviewOptions? options = null)
     {
-        ArgumentNullException.ThrowIfNull(resolver);
+        ArgumentNullException.ThrowIfNull(cardResolver);
 
         return new CardCyclePreviewHoverTip(
-            resolver,
-            options);
-    }
-
-    public static IHoverTip FromPool<TPool>(
-        Func<CardModel, bool> predicate,
-        CardCyclePreviewOptions? options = null)
-        where TPool : CardPoolModel
-    {
-        ArgumentNullException.ThrowIfNull(predicate);
-
-        return FromResolver(
-            () => CardCyclePreviewCardRegistry
-                .GetCardsFromPool<TPool>()
-                .Where(predicate),
-            options);
-    }
-
-    public static IHoverTip FromTag<TPool>(
-        CardTag tag,
-        CardCyclePreviewOptions? options = null)
-        where TPool : CardPoolModel
-    {
-        return FromPool<TPool>(
-            card => card.Tags.Contains(tag),
+            cardResolver,
             options);
     }
 }
