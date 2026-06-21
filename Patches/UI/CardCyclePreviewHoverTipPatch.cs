@@ -1,4 +1,7 @@
-﻿using Godot;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
@@ -20,6 +23,52 @@ internal sealed class CardCyclePreviewState
 internal static class CardCyclePreviewPatchStorage
 {
     public static readonly Dictionary<NHoverTipSet, CardCyclePreviewState> Active = [];
+
+    public static readonly ConditionalWeakTable<CardHoverTip, InstancedCardTipMarker> InstancedCardTips = new();
+
+    public sealed class InstancedCardTipMarker;
+}
+
+internal static class CardCyclePreviewPatchHelpers
+{
+    public static List<IHoverTip> ResolveAllForCycleSet(
+        IEnumerable<IHoverTip> tips)
+    {
+        List<IHoverTip> resolvedTips = HoverTipResolver.ResolveAll(tips);
+
+        foreach (IHoverTip tip in resolvedTips)
+        {
+            if (tip is CardHoverTip cardHoverTip)
+            {
+                CardCyclePreviewPatchStorage.InstancedCardTips.GetValue(
+                    cardHoverTip,
+                    _ => new CardCyclePreviewPatchStorage.InstancedCardTipMarker());
+            }
+        }
+
+        return resolvedTips;
+    }
+
+    public static void ClearChildren(Node parent)
+    {
+        foreach (Node child in parent.GetChildren().OfType<Node>().ToList())
+        {
+            parent.RemoveChild(child);
+            child.QueueFree();
+        }
+    }
+}
+
+[HarmonyPatch(typeof(CardHoverTip), nameof(CardHoverTip.IsInstanced), MethodType.Getter)]
+public static class CardCyclePreviewCardHoverTipInstancedPatch
+{
+    private static void Postfix(
+        CardHoverTip __instance,
+        ref bool __result)
+    {
+        if (CardCyclePreviewPatchStorage.InstancedCardTips.TryGetValue(__instance, out _))
+            __result = true;
+    }
 }
 
 [HarmonyPatch(
@@ -32,24 +81,30 @@ internal static class CardCyclePreviewPatchStorage
     ])]
 public static class NHoverTipSetCreateAndShowCardCyclePreviewPatch
 {
+    [HarmonyPriority(Priority.Last)]
     private static void Prefix(
         ref IEnumerable<IHoverTip> hoverTips,
-        out List<IHoverTip> __state)
+        out List<IHoverTip>? __state)
     {
-        __state = hoverTips.ToList();
-        hoverTips = HoverTipResolver.ResolveAll(__state);
+        List<IHoverTip> originalTips = hoverTips.ToList();
+
+        if (!HoverTipResolver.HasResolvingTip(originalTips))
+        {
+            __state = null;
+            return;
+        }
+
+        __state = originalTips;
+        hoverTips = CardCyclePreviewPatchHelpers.ResolveAllForCycleSet(originalTips);
     }
 
     private static void Postfix(
         Control owner,
         HoverTipAlignment alignment,
         NHoverTipSet? __result,
-        List<IHoverTip> __state)
+        List<IHoverTip>? __state)
     {
-        if (__result == null)
-            return;
-
-        if (!HoverTipResolver.HasResolvingTip(__state))
+        if (__result == null || __state == null)
             return;
 
         CardCyclePreviewPatchStorage.Active[__result] = new CardCyclePreviewState
@@ -84,15 +139,15 @@ public static class NHoverTipSetProcessCardCyclePreviewPatch
         NHoverTipSet set,
         CardCyclePreviewState state)
     {
-        ClearChildren(set._textHoverTipContainer);
-        ClearChildren(set._cardHoverTipContainer);
+        CardCyclePreviewPatchHelpers.ClearChildren(set._textHoverTipContainer);
+        CardCyclePreviewPatchHelpers.ClearChildren(set._cardHoverTipContainer);
 
         set._textHoverTipContainer.Size = Vector2.Zero;
         set._cardHoverTipContainer.Size = Vector2.Zero;
 
         set.Init(
             state.Owner,
-            HoverTipResolver.ResolveAll(state.OriginalTips));
+            CardCyclePreviewPatchHelpers.ResolveAllForCycleSet(state.OriginalTips));
 
         if (state.Alignment != HoverTipAlignment.None)
         {
@@ -104,15 +159,6 @@ public static class NHoverTipSetProcessCardCyclePreviewPatch
         {
             set.CorrectVerticalOverflow();
             set.CorrectHorizontalOverflow();
-        }
-    }
-
-    private static void ClearChildren(Node parent)
-    {
-        foreach (Node child in parent.GetChildren().OfType<Node>().ToList())
-        {
-            parent.RemoveChild(child);
-            child.QueueFree();
         }
     }
 }
