@@ -44,38 +44,26 @@ public static class CardCyclePreview
             options);
     }
 
-    public static IHoverTip FromPool(
-        CardModel sourceCard,
+    public static IHoverTip FromPool<TPool>(
         Func<CardModel, bool> predicate,
         CardCyclePreviewOptions? options = null)
+        where TPool : CardPoolModel
     {
-        ArgumentNullException.ThrowIfNull(sourceCard);
         ArgumentNullException.ThrowIfNull(predicate);
 
         return FromResolver(
-            () =>
-            {
-                var owner = sourceCard.Owner;
-
-                if (owner == null)
-                    return [];
-
-                return owner.Character.CardPool
-                    .GetUnlockedCards(
-                        owner.UnlockState,
-                        owner.RunState.CardMultiplayerConstraint)
-                    .Where(predicate);
-            },
+            () => CardCyclePreviewCardRegistry
+                .GetCardsFromPool<TPool>()
+                .Where(predicate),
             options);
     }
 
-    public static IHoverTip FromTag(
-        CardModel sourceCard,
+    public static IHoverTip FromTag<TPool>(
         CardTag tag,
         CardCyclePreviewOptions? options = null)
+        where TPool : CardPoolModel
     {
-        return FromPool(
-            sourceCard,
+        return FromPool<TPool>(
             card => card.Tags.Contains(tag),
             options);
     }
