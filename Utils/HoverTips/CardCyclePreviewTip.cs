@@ -48,14 +48,23 @@ public sealed class CardCyclePreviewHoverTip : IResolvingHoverTip
 
     public IHoverTip? ResolveHoverTip()
     {
-        var cards = ResolveCards();
+        List<CardModel> cards = ResolveCards();
 
         if (cards.Count == 0)
             return null;
 
-        return HoverTipFactory.FromCard(
-            cards[CurrentIndex(cards.Count)],
-            _options.Upgrade);
+        CardModel card = cards[CurrentIndex(cards.Count)];
+
+        if (_options.Upgrade)
+        {
+            card = (CardModel)card.MutableClone();
+            card.UpgradeInternal();
+            card.FinalizeUpgradeInternal();
+        }
+
+        return new ResolvedCardCycleHoverTip(
+            card,
+            this);
     }
 
     private int CurrentIndex(int count)
